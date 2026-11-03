@@ -1,0 +1,16 @@
+# Recall bank
+
+Spaced-repetition items for the coach. Key points are for the coach only, never shown to the learner as answers. Boxes: 1 = 1 day, 2 = 3 days, 3 = 7 days, 4 = 14 days, 5 = 30 days.
+
+| id | task | question | key points (for the coach only) | box | last | next |
+|----|------|----------|----------------------------------|-----|------|------|
+| R001 | prior (Lesson 2.3 / dental) | An LED with V_f 2.1 V sits on a 3.3 V GPIO through 100 Ω. What is the current? | I = (3.3 − 2.1) / 100 ≈ 12 mA (Ohm's law on the resistor's voltage) | 1 | | 2026-11-03 |
+| R002 | prior (Lesson 2.3 / dental) | Why does an LED need a series resistor on a GPIO, and not just 3.3 V across it? | Forward voltage is nearly fixed, so a small change in supply gives a huge current change; the resistor sets the current and protects the pin | 1 | | 2026-11-03 |
+| R003 | prior (Lesson 1.3 / dental) | What does a pull-up do on an open-drain I2C line? | Devices can only pull the line LOW; the resistor pulls it HIGH when nobody pulls; without it the line never goes high | 1 | | 2026-11-03 |
+| R004 | prior (Lesson 1.3) | What does a continuity reading on a meter tell you, and what does OL mean? | Continuity = near-zero ohms, beep, closed path; OL = open circuit (no path) | 1 | | 2026-11-03 |
+| R005 | prior (dental power stage) | What does an LDO regulator do, and what limits it near its input voltage? | Linear regulator: holds a fixed lower output by dropping the excess as heat; dropout voltage means it cannot regulate when input is too close to output | 1 | | 2026-11-03 |
+| R006 | T01 | On a board whose 3V3 comes through an LDO, an ohmmeter across one SDA pull-up reads megohms and drifts. What do you measure instead, and what does that reading tell you? | keywords: powered rail is not a passive path; measure SDA–SCL (two pull-ups in series); MΩ = no clean path to VCC | 1 | | 2026-11-05 |
+| R007 | T01 | A bus line has a 1.82 kΩ pull-up and about 100 pF of bus capacitance. Estimate the SDA rise time with the 2.2·R·C rule and compare it with the fast-mode limit. | keywords: 2.2·R·C ≈ 400 ns; limit 300 ns; a 10 kΩ alone gives ≈ 2.2 µs; parallel value lowers R | 1 | | 2026-11-05 |
+| R008 | T01 | A green LED on 3.3 V through 100 Ω. The meter reads 0.614 V across the resistor. Work out the current, and say why the classic 2.1 V assumption gives a different answer. | keywords: I = V_R / R ≈ 6.2 mA; InGaN-type V_f 2.655 V; 2.1 V assumption would predict ≈ 12 mA | 1 | | 2026-11-05 |
+| R009 | T01 | On a 4-pin tactile switch, which pin pairs show continuity when released, and which when pressed? How many pairs did you expect to be pressed-only? | keywords: 1-3 and 2-4 always connected (by ear); 1-2 connects when pressed; 3-4 pressed pair not yet logged; misconception: predicted 2 pressed-only pairs, count is 4 in total across both states | 1 | | 2026-11-05 |
+| R010 | T01 (parked) | The 5V pin read about 4.68 V on USB while 3V3 read 3.28 V. What on the board sits between the USB rail and the 5V pin? | NOT YET TAUGHT: ask at T02 start, do not grade as recall. keywords: protection diode on VBUS, forward drop (confirm against the board schematic first) | 1 | | 2026-11-05 |
