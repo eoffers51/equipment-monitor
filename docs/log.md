@@ -42,3 +42,38 @@ A larger pull-up charges the bus capacitance more slowly, so the rise time grows
 
 **3. The spec wants a few mA per LED: why control the current and not the voltage, and what would 3.3 V directly on the blue LED do?**
 An LED's voltage is almost constant (blue 2.79 V at 4.8 mA, red 2.09 V at 11.9 mA) while its current changes a lot with tiny voltage changes. So setting a voltage cannot set the brightness; setting the current can. The series resistor turns the fixed 3.3 V into a chosen current: I = (3.3 − V_f) / R. With 3.3 V directly on the blue LED the 0.5 V excess has nothing to drop across, the current is limited only by wiring and the chip, and the LED burns out.
+
+## T02 Project skeleton, HAL shell, boot log (2026-11-06)
+
+### Results
+
+Build: `Project build complete`, 0 `warning:` lines, 51 components with `MINIMAL_BUILD` (138 before). Boot log: `SPI Flash Size : 16MB`, no 2 MB warning.
+
+| Test | ROM line | IDF `reset_reason` |
+|---|---|---|
+| flash (auto-reset through EN) | `rst:0x1 (POWERON)` | `1 (POWERON)` |
+| RST button | | `1 (POWERON)` |
+| `esp_restart()` test line (removed after) | `rst:0xc (RTC_SW_CPU_RST)` | `3 (SW)` |
+
+Prediction was `2 (EXT)` for the RST button; on the ESP32-S3 the EN pin resets the whole chip, so it reads as power-on (`ESP_RST_EXT` is "not applicable", `esp_system.h:27`).
+
+Free heap: 401 260 bytes at boot and unchanged at 10 … 60 s (min_free_heap 401 244).
+
+Dependency proof (`#include "driver/gpio.h"` in `analysis.c`):
+
+| Run | Setup | Result |
+|---|---|---|
+| 1 | `main` does not require `analysis` | builds "clean": `analysis.c` not compiled |
+| 2 | `main` has `PRIV_REQUIRES board_hal analysis` | `analysis.c:2:10: fatal error: driver/gpio.h: No such file or directory` |
+| 3 | include removed | clean, 0 warnings |
+
+### Control questions
+
+**1. Why does `MINIMAL_BUILD` plus `PRIV_REQUIRES` make the dependency rule something the compiler enforces, not just a convention?**
+Every dependency has to be declared on purpose; if we include something we didn't declare, the build fails at compile time. Mechanism: each component's include path (`-I` list) is only the core IDF set plus the components named in its own `REQUIRES` / `PRIV_REQUIRES`. A header from any other component is "not found", even if that component is built anyway. Run 2: `esp_driver_gpio` was in the build, but `analysis` had no `PRIV_REQUIRES esp_driver_gpio`, so `analysis.c:2:10: fatal error: driver/gpio.h: No such file or directory`. `MINIMAL_BUILD` adds the second half: without it, all components are built (138) and `main`, which lists no requirements, sees all of them; with it only `main` and what it asks for are built (51–52). A component nobody requires isn't compiled at all (run 1 built "clean" with the bad include), so `main` must list `analysis`. Limit: the core set (`esp_system`, `freertos`, `log`…) is visible everywhere, so a direct `esp_restart()` in `main` would compile; the grep check covers that.
+
+**2. What is the difference between `CONFIG_FREERTOS_HZ=1000` and the 1 kHz sampling rate of the sensor — what does each clock drive?**
+The FreeRTOS tick (`CONFIG_FREERTOS_HZ=1000`, an ESP32 timer interrupt) wakes tasks: it decides when a `vTaskDelay()` ends and when tasks take turns. The 1 kHz samples are driven by the MPU-6050's own clock (rate set in its registers); each new sample raises INT → GPIO10 interrupt → the interrupt wakes the sampler directly, without waiting for a tick. So with HZ=100 the sample rate would not change. HZ matters for delays: at 100 Hz one tick is 10 ms, and `pdMS_TO_TICKS(5)` = 5 · 100 / 1000 = 0 (integer division), so `vTaskDelay(0)` doesn't wait at all; at 1000 Hz it is 5 ticks (4–5 ms, the first tick is partial).
+
+**3. Where does `esp_reset_reason()` get its information from, and why can a value differ between the chip's own reset register and what IDF reports?**
+The ROM reads the chip's hardware reset register and prints it before any IDF code runs (`rst:0xc (RTC_SW_CPU_RST)`). `esp_reset_reason()` takes that hardware cause and adds a hint that IDF saved before the reset in an RTC register that survives a CPU reset (`RTC_RESET_CAUSE_REG`). A software restart, a panic and the task watchdog all end in the same hardware "software CPU reset" (0xc), so the register alone can't tell them apart; the hint can (`PANIC`, `TASK_WDT`, `INT_WDT`, `BROWNOUT`), and without a hint it is `SW` (`reset_reason.c:22-30`). The numbers also differ because IDF uses its own chip-independent enum: hardware 0xc = 12 → IDF 3 (SW); hardware 0x1 → IDF 1 (POWERON), which is why the EN pin / RST button show POWERON, not EXT.

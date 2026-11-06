@@ -1,0 +1,7 @@
+# Project defaults (kept in git). sdkconfig is generated from these and is gitignored.
+# Board: YD-ESP32-S3 (ESP32-S3-DevKitC-1 clone), N16R8 module: 16 MB flash.
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+# 1 ms FreeRTOS tick, so pdMS_TO_TICKS(5) is 5 ticks, not 0.
+CONFIG_FREERTOS_HZ=1000
+# PSRAM off: nothing needs it, and GPIO35-37 stay reserved (docs/pins.md).
+# CONFIG_SPIRAM is not set

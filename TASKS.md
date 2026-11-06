@@ -18,7 +18,7 @@ Companion to `TASK.md` (the spec). Section numbers like **§2** refer to that fi
 7. §7 / ADR-003: `esp_task_wdt`, 1 s, panic on trigger, idle tasks not subscribed, feed only after successful work; the culprit name is captured in the TWDT ISR hook; red LED flashes `esp_reset_reason()` times after a fault reset.
 8. §8 / ADR-004: standby = 100 ms light-sleep cycle, MPU cycle mode 20 Hz, BMP280 forced mode; deep sleep after 60 s idle in standby, EXT1 `ANY_LOW` on GPIO4 | GPIO5, wait for button release first; never sleep in Alarm.
 9. §9: press-edge → LED ≤ 20 ms active / ≤ 50 ms standby (logged `lat_us`); `|dt − 1000| ≤ 50 µs` between samples; free heap at 600 s equals free heap at 60 s; no `malloc` after init.
-10. Layout per ADR-006: `driver/`, `esp_sleep`, `esp_timer`, `esp_task_wdt`, `esp_system`, `esp_attr`, `gptimer`, `ledc`, `i2c_master`, `rtc_io` headers only under `components/hal/`; logic components include nothing from ESP-IDF or FreeRTOS and compile with `gcc -Wall -Wextra -Werror -std=c11`.
+10. Layout per ADR-006: `driver/`, `esp_sleep`, `esp_timer`, `esp_task_wdt`, `esp_system`, `esp_attr`, `gptimer`, `ledc`, `i2c_master`, `rtc_io` headers only under `components/board_hal/`; logic components include nothing from ESP-IDF or FreeRTOS and compile with `gcc -Wall -Wextra -Werror -std=c11`.
 11. Build: `. C:\Espressif\tools\Microsoft.v6.0.2.PowerShell_profile.ps1 *> $null; idf.py build` must finish with zero warnings; `idf.py -B build_clang ... clang-check` is run before closing any task that changed C code. Never `idf.py monitor` from Claude.
 
 ---
@@ -28,7 +28,7 @@ Companion to `TASK.md` (the spec). Section numbers like **§2** refer to that fi
 | # | Task | Phase | Spec | Host test | Done |
 |---|---|---|---|---|---|
 | T01 | Bench check without the MCU | Bench | HW | | ☑ 2026-11-04 |
-| T02 | Project skeleton, HAL shell, boot log | Bring-up | §6, §9 | | ☐ |
+| T02 | Project skeleton, HAL shell, boot log | Bring-up | §6, §9 | | ☑ 2026-11-06 |
 | T03 | Four LEDs: GPIO heartbeat + LEDC blue | Bring-up | §5 | | ☐ |
 | T04 | I2C bus at 400 kHz + address scan | Bring-up | HW, §1 | | ☐ |
 | T05 | BMP280: ID, calibration, max-rate temperature | Sensors | §1 | `bmp280_calc` (creates `host_test/`) | ☐ |
@@ -80,7 +80,7 @@ Steps:
 
 ### T02. Project skeleton, HAL shell, boot log
 **Goal:** a project that builds with the ADR-006 layout, logs the reset reason and the free heap, and proves the dependency rule.
-**Covers:** §6 (reset reason at every start), §9 (heap figure). **Prerequisites:** T01. **Creates:** `components/hal` (`hal_sys`, `hal_time`), empty folders + `CMakeLists.txt` for `mpu6050`, `bmp280`, `bmp280_calc`, `analysis`, `button_decoder`, `monitor_fsm`, `indicator`, `blackbox`; `main/board_pins.h`, `main/app_config.h`; `sdkconfig.defaults`.
+**Covers:** §6 (reset reason at every start), §9 (heap figure). **Prerequisites:** T01. **Creates:** `components/board_hal` (`hal_sys`, `hal_time`), empty folders + `CMakeLists.txt` for `mpu6050`, `bmp280`, `bmp280_calc`, `analysis`, `button_decoder`, `monitor_fsm`, `indicator`, `blackbox`; `main/board_pins.h`, `main/app_config.h`; `sdkconfig.defaults`.
 
 Steps:
 1. `sdkconfig.defaults`: `CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y`, `CONFIG_FREERTOS_HZ=1000`. Delete `sdkconfig`, run `idf.py set-target esp32s3`, build. Add `idf_build_set_property(MINIMAL_BUILD ON)` to the top-level `CMakeLists.txt`.
@@ -93,7 +93,7 @@ Steps:
 - `idf.py build` ends with `Project build complete` and **zero** `warning:` lines; no 2 MB flash warning in the boot log.
 - Serial log after `idf.py flash`: `boot: reset_reason=1 (POWERON)`, `boot: free_heap=<n>` where `<n>` > 300 000; after pressing RST the same reason; after a planned `esp_restart()` test line: `reset_reason=3 (SW)` (then remove the line).
 - Step 4 produced `fatal error: driver/gpio.h: No such file or directory` and the build is clean again.
-- `grep -rln "driver/\|esp_sleep\|esp_timer\|esp_task_wdt\|esp_system\|esp_attr\|gptimer\|ledc\|i2c_master\|rtc_io" components main` lists only files under `components/hal/`.
+- `grep -rln "driver/\|esp_sleep\|esp_timer\|esp_task_wdt\|esp_system\|esp_attr\|gptimer\|ledc\|i2c_master\|rtc_io" components main` lists only files under `components/board_hal/`.
 
 **Control questions**
 1. Why does `MINIMAL_BUILD` plus `PRIV_REQUIRES` make the dependency rule something the compiler enforces, not just a convention?
@@ -115,7 +115,7 @@ Steps:
 - Camera: green period 1.00 ± 0.05 s, on-time 500 ± 30 ms, averaged over ≥ 10 cycles.
 - Meter on **GPIO14 (before the resistor)** against GND: 0.83 ± 0.2 V at duty 64, 1.65 ± 0.2 V at 128, 3.30 ± 0.1 V at 255.
 - Camera: blue brightness ramps visibly during the sweep; no LED lights during three resets.
-- `grep -n "GPIO_NUM_\|[^a-z_]1[1-4][^0-9]" components/hal/*.c` finds no pin numbers inside the HAL (they arrive as arguments).
+- `grep -n "GPIO_NUM_\|[^a-z_]1[1-4][^0-9]" components/board_hal/*.c` finds no pin numbers inside the HAL (they arrive as arguments).
 
 **Control questions**
 1. Why must the output level be written before the pin is switched to output mode, and what did the camera check in step 5 prove?
