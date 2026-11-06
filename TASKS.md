@@ -29,7 +29,7 @@ Companion to `TASK.md` (the spec). Section numbers like **§2** refer to that fi
 |---|---|---|---|---|---|
 | T01 | Bench check without the MCU | Bench | HW | | ☑ 2026-11-04 |
 | T02 | Project skeleton, HAL shell, boot log | Bring-up | §6, §9 | | ☑ 2026-11-06 |
-| T03 | Four LEDs: GPIO heartbeat + LEDC blue | Bring-up | §5 | | ☐ |
+| T03 | Four LEDs: GPIO heartbeat + LEDC blue | Bring-up | §5 | | ☑ 2026-11-06 |
 | T04 | I2C bus at 400 kHz + address scan | Bring-up | HW, §1 | | ☐ |
 | T05 | BMP280: ID, calibration, max-rate temperature | Sensors | §1 | `bmp280_calc` (creates `host_test/`) | ☐ |
 | T06 | MPU-6050: wake, 1 kHz config, gravity check | Sensors | §1 | | ☐ |
@@ -93,7 +93,7 @@ Steps:
 - `idf.py build` ends with `Project build complete` and **zero** `warning:` lines; no 2 MB flash warning in the boot log.
 - Serial log after `idf.py flash`: `boot: reset_reason=1 (POWERON)`, `boot: free_heap=<n>` where `<n>` > 300 000; after pressing RST the same reason; after a planned `esp_restart()` test line: `reset_reason=3 (SW)` (then remove the line).
 - Step 4 produced `fatal error: driver/gpio.h: No such file or directory` and the build is clean again.
-- `grep -rln "driver/\|esp_sleep\|esp_timer\|esp_task_wdt\|esp_system\|esp_attr\|gptimer\|ledc\|i2c_master\|rtc_io" components main` lists only files under `components/board_hal/`.
+- `grep -rln "driver/\|esp_sleep\|esp_timer\|esp_task_wdt\|esp_system\|esp_attr\|gptimer\|\<ledc_\|i2c_master\|rtc_io" components main` lists only files under `components/board_hal/`.
 
 **Control questions**
 1. Why does `MINIMAL_BUILD` plus `PRIV_REQUIRES` make the dependency rule something the compiler enforces, not just a convention?
@@ -113,7 +113,7 @@ Steps:
 
 **Verified result**
 - Camera: green period 1.00 ± 0.05 s, on-time 500 ± 30 ms, averaged over ≥ 10 cycles.
-- Meter on **GPIO14 (before the resistor)** against GND: 0.83 ± 0.2 V at duty 64, 1.65 ± 0.2 V at 128, 3.30 ± 0.1 V at 255.
+- Meter on **GPIO14 (before the resistor)** against GND: 0.83 ± 0.2 V at duty 64, 1.65 ± 0.2 V at 128, 3.30 ± 0.1 V at 255 **with the LED disconnected** (2026-11-06: with the blue LED + 100 Ω connected the pin reads about 4 % low, 3.148 V at 255, because the GPIO output has about 29 Ω of its own resistance at 3.6 mA; unloaded 3.254 V. See `docs/measurements.jsonl`).
 - Camera: blue brightness ramps visibly during the sweep; no LED lights during three resets.
 - `grep -n "GPIO_NUM_\|[^a-z_]1[1-4][^0-9]" components/board_hal/*.c` finds no pin numbers inside the HAL (they arrive as arguments).
 

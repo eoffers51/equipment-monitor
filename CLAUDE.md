@@ -7,6 +7,7 @@ Equipment Health Monitor: ESP-IDF **v6.0.2**, plain C, on an **ESP32-S3-DevKitC-
 - Spec: @TASK.md. Section numbers (§1 Measurement … §9 Timing) refer to it. Check every change against it.
 - Task list (T01..T18 + stretch, Verified result + control questions per task): @TASKS.md. Its hard-constraints list at the top can be quoted verbatim. Tasks go in order.
 - Pin budget: `docs/pins.md` (and, once T02 creates it, `main/board_pins.h`; the two must agree). Decisions: `docs/adr/`. Parts: `docs/bom.md`. Don't pick GPIOs that aren't in the pin budget; change the budget first.
+- Wiring picture: `docs/wiring.svg` (shown in README.md). It must match `docs/pins.md` and `main/board_pins.h`; when a pin changes, update all three (and `diagram.json` once the Wokwi simulation exists).
 - `SESSION_LOG.md` is Claude's handoff file: keep **Current state** and a dated History entry current whenever a task step finishes, a decision is made, or the user wraps up. `docs/log.md` is the learner's log, but Claude writes it (user's decision 2026-11-04): after each task add a dated entry with the user's measured numbers (from `meter-tech` or the user, never invented) and the control-question answers in the user's own words, only after the user approved the draft in chat. Never pre-write a control-question answer there or anywhere else.
 
 ## How to help: guide, don't solve

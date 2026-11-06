@@ -20,3 +20,12 @@ _Static_assert((APP_SAMPLE_RATE_HZ * APP_WINDOW_MS) % 1000U == 0U, "window must 
 
 /* T02: boot-log repeat period. */
 #define APP_STATUS_LOG_PERIOD_MS 10000U
+
+/* §5 / T03: blue load LED PWM. 5 kHz is far above what the eye (or the camera) sees as flicker. */
+#define APP_LEDC_FREQ_HZ 5000U
+/* 8 bits: duty 0..256, where 256 = always on. */
+#define APP_LEDC_RES_BITS 8U
+
+/* Period of the app_main loop. Timing inside the loop comes from the µs clock, not from
+ * counting loops, so this only sets how quickly a change is noticed (at most this late). */
+#define APP_MAIN_LOOP_MS 10U

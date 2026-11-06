@@ -4,7 +4,7 @@ Claude's handoff notes between sessions. This is separate from `docs/log.md`, wh
 Keep **Current state** short and up to date. Add new entries at the top of **History**, 3–6 lines each.
 
 ## Current state
-- **T02 done** (2026-11-06, committed). Next: T03 Four LEDs. HAL component renamed `board_hal` (IDF has its own `hal`; ADR-006 amendment 2026-11-06). Built: `sdkconfig.defaults` (16 MB, HZ=1000, PSRAM off), `MINIMAL_BUILD`, `main/board_pins.h`, `main/app_config.h`, `board_hal` (`hal_sys` reset reason/heap/IDF version/restart, `hal_time`), `main.c` boot + 10 s status log, 8 placeholder components (`analysis` has an empty `analysis.c`, required by main). Build 0 warnings; clang-tidy: only an IDF-header include-cycle note. Bench (user-reported 2026-11-06): POWERON=1 on flash and on RST, free_heap 401 260 stable, SW=3 after `esp_restart()` with ROM `rst:0xc (RTC_SW_CPU_RST)` (CQ3 data; not yet explained). T01 numbers: `docs/log.md` and `docs/measurements.jsonl`.
+- **T03 done** (2026-11-06, committed). Next: T04 I2C bus + address scan. `board_hal` now has `hal_gpio` (LED outputs, level before output mode) and `hal_ledc` (5 kHz, 8-bit, blue), both returning `esp_err_t` (ADR-006 policy). Added `docs/wiring.svg` and `README.md`. Blue hold/sweep test removed from `main.c`. Bench camera note: on the S9 use -Ev -20 and room light off for LED videos; a video with RST presses failed once (presses fell outside the recording window). Earlier T02 facts (reset reason, heap) stay in History.
 - Parked recall for later: why the 5V pin reads 4.63–4.68 V and 3V3 does not show the loss. Misconception to revisit: an ohmmeter across a pull-up on a powered-path (LDO) board reads MΩ and drifts; measure SDA–SCL instead.
 - Measurement flow (user's request 2026-11-03): the coach reads the meter point by point and asks Save / Repeat / Cancel before logging; `meter-tech` is not used for multi-point runs.
 - Plan exists: `TASKS.md` (T01–T18 + S1–S5), `docs/pins.md` (pin budget, everything on header J1), `docs/bom.md`, `docs/adr/ADR-001…006`.
@@ -14,6 +14,12 @@ Keep **Current state** short and up to date. Add new entries at the top of **His
 - Learner background to build on: Lesson 1.3 (components, Unity host tests, debounced button), Lesson 2.3 (superloop, `static const` config), dental curing light (gptimer 1 kHz ISR, shift-register debounce, ISR → queue → FSM task, reset-reason logging, power stage). New here: I2C, sensor registers, interrupts from a sensor, RMS/hysteresis, RTC RAM, task watchdog, light/deep sleep, LEDC.
 
 ## History
+
+### 2026-11-06 — T03 Four LEDs (checkpoints 1–5)
+- Prediction: 1.65 V at duty 128 correct; blue sweep changes most at low duty, correct (camera ~60 % of change in the first 0.5 s).
+- Meter on GPIO14 read 4 % low with the blue LED connected (3.148 V at 255); diagnosed as ~29 Ω pin output resistance at 3.6 mA (unloaded 3.254 V). T03 target for 255 amended to "LED disconnected" (user approved).
+- Green 1.000 s period, 506 ms on-time over 15 cycles; three resets dark (by eye, camera retake skipped).
+- Explainer: https://claude.ai/artifact/1CR5Pk7Qye5hUHnMxGTr9J
 
 ### 2026-11-06 — T02 checkpoints 1–4
 - Prediction: learner thought `pdMS_TO_TICKS(5)` at 100 Hz waits 5 ms and mixed tick rate with CPU clock; worked through integer division to 0 → `vTaskDelay(0)` only yields. Misconception to revisit: tick rate vs CPU clock (CPU is 160 MHz here, not 240).
