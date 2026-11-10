@@ -4,7 +4,7 @@ Claude's handoff notes between sessions. This is separate from `docs/log.md`, wh
 Keep **Current state** short and up to date. Add new entries at the top of **History**, 3–6 lines each.
 
 ## Current state
-- **T04 done** (2026-11-10, not yet committed). Next: T05 BMP280 → actually a BME280 (id 0x60): temperature path as planned, driver must accept 0x60 (see notes below).
+- **T04 done** (2026-11-10, commit 7883623 pushed). Next: T05 BMP280 → actually a BME280 (id 0x60): temperature path as planned, driver must accept 0x60 (see notes below).
 - `hal_i2c` (components/board_hal/hal_i2c.c, uncommitted): `hal_i2c_init(sda, scl, scl_hz)`, `hal_i2c_add_device(addr7, &dev)`, `hal_i2c_probe(addr7)` (fixed 100 kHz inside IDF v6.0.2 probes), `hal_i2c_read_regs(dev, reg, buf, len)` and `hal_i2c_write_reg` (20 ms xfer timeout), `hal_i2c_bus_reset()`, `hal_i2c_error_count()`. `HAL_I2C_DEV_INVALID` (0xFF) is rejected by every device function. Error rule: NACK at a registered address, or any result other than OK/NOT_FOUND, counts; NACK at an empty address does not.
 - T05/T06 notes: the BMP280 module is a BME280 (chip id 0x60, BMP280 = 0x58). The T05 driver must accept 0x60, check the BME280 standby table and the ctrl_hum write ordering in its datasheet, and update `docs/bom.md`. The `APP_I2C_REG_*` constants in `main/app_config.h` must be MOVED (not copied) into the drivers at T05/T06. The 5 s rescan and ID read in `main.c` is bring-up only and goes before T07.
 - T07 notes in `hal_i2c.c`: error-counter race (counter touched from task and ISR context), bus-lock timeout must be counted as a fault, and bus reset must not run without the lock.
