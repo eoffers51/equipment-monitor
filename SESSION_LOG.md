@@ -24,6 +24,8 @@ Keep **Current state** short and up to date. Add new entries at the top of **His
 ## History
 
 ### 2026-11-10 — logic-analyzer skill
+- Walked through one PulseView-decoded temperature read (S W76 FA Sr R76 7E F4 00 N P -> adc_T 0x7EF40 -> 22.79 °C). Learner first said the sensor ACKs the read bytes; after the hint "the receiver ACKs" answered correctly (master ACKs 7E/F4, NACKs the last byte to stop). Candidate recall item: who ACKs in a read and why the last byte is NACKed.
+- Session ended here; next session starts T06 (MPU-6050 wake, 1 kHz config, gravity check).
 - Built and pushed the `logic-analyzer` skill to eoffers51/claude-skills (embedded-agents 0.3.0). Self-test on a synthetic copy of the reference read passes (S W76 FA Sr R76 7F 74 00N P, 54/54 data clocks, 400 kHz, adc_T 0x7F740). Register names come from this project's `#define`s (`la.py regmap`). Bench run pending sigrok-cli install.
 - Found: 0x7F740 -> 23.44 °C with dig_T1=27984, dig_T2=26460, dig_T3=50; the 23.12 °C in the earlier note does not match, so its source needs checking before it goes into docs/log.md.
 
