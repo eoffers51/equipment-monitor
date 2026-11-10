@@ -4,7 +4,7 @@ Claude's handoff notes between sessions. This is separate from `docs/log.md`, wh
 Keep **Current state** short and up to date. Add new entries at the top of **History**, 3–6 lines each.
 
 ## Current state
-- **T05 done** (2026-11-10, not yet committed). Next: T06 MPU-6050 (wake, 1 kHz config, gravity check).
+- **T05 done** (2026-11-10, commit a24b04e pushed). Next: T06 MPU-6050 (wake, 1 kHz config, gravity check).
 - The "BMP280" module is a **BME280** (id 0x60, BMP280 = 0x58). Calibration of this chip: dig_T1=27984, dig_T2=26460, dig_T3=50 (host tests use it).
 - `bmp280` driver (components/bmp280): `bmp280_init(dev, &id)` (accepts 0x58/0x60), `bmp280_read_calib(dev, &calib)`, `bmp280_configure(dev, osrs_t, osrs_p, t_sb, filter, mode, &ctrl_meas, &config)` (reads back), `bmp280_read_raw_temp(dev, &adc_t)`. Errors: `BMP280_ERR_READBACK` (= ESP_ERR_NOT_FINISHED, stored values differ), `BMP280_ERR_NO_DATA` (= ESP_ERR_INVALID_SIZE, result registers still 0x80000).
 - `bmp280_calc_temp_centi(calib, adc_t)` → int32 °C × 100, hardware-free (components/bmp280_calc).
