@@ -4,20 +4,50 @@ Claude's handoff notes between sessions. This is separate from `docs/log.md`, wh
 Keep **Current state** short and up to date. Add new entries at the top of **History**, 3–6 lines each.
 
 ## Current state
-- **T04 done** (2026-11-10, commit 7883623 pushed). Next: T05 BMP280 → actually a BME280 (id 0x60): temperature path as planned, driver must accept 0x60 (see notes below).
-- `hal_i2c` (components/board_hal/hal_i2c.c, uncommitted): `hal_i2c_init(sda, scl, scl_hz)`, `hal_i2c_add_device(addr7, &dev)`, `hal_i2c_probe(addr7)` (fixed 100 kHz inside IDF v6.0.2 probes), `hal_i2c_read_regs(dev, reg, buf, len)` and `hal_i2c_write_reg` (20 ms xfer timeout), `hal_i2c_bus_reset()`, `hal_i2c_error_count()`. `HAL_I2C_DEV_INVALID` (0xFF) is rejected by every device function. Error rule: NACK at a registered address, or any result other than OK/NOT_FOUND, counts; NACK at an empty address does not.
-- T05/T06 notes: the BMP280 module is a BME280 (chip id 0x60, BMP280 = 0x58). The T05 driver must accept 0x60, check the BME280 standby table and the ctrl_hum write ordering in its datasheet, and update `docs/bom.md`. The `APP_I2C_REG_*` constants in `main/app_config.h` must be MOVED (not copied) into the drivers at T05/T06. The 5 s rescan and ID read in `main.c` is bring-up only and goes before T07.
-- T07 notes in `hal_i2c.c`: error-counter race (counter touched from task and ISR context), bus-lock timeout must be counted as a fault, and bus reset must not run without the lock.
-- Pins (from `docs/pins.md`): BTN_ACK GPIO4, BTN_MODE GPIO5, DBG GPIO6 (optional), SDA GPIO8, SCL GPIO9, MPU_INT GPIO10, LED green/yellow/red/blue GPIO11/12/13/14 (blue on LEDC). Both sensor modules on 3V3. All four LED resistors are 100 Ω. T03 facts (LEDC 5 kHz, level-before-mode, camera setup) stay in History.
-- Parked recall for later: why the 5V pin reads 4.63–4.68 V and 3V3 does not show the loss. Misconception to revisit: an ohmmeter across a pull-up on a powered-path (LDO) board reads MΩ and drifts; measure SDA–SCL instead.
-- Measurement flow (user's request 2026-11-03): the coach reads the meter point by point and asks Save / Repeat / Cancel before logging; `meter-tech` is not used for multi-point runs.
-- Plan exists: `TASKS.md` (T01–T18 + S1–S5), `docs/pins.md` (pin budget, everything on header J1), `docs/bom.md`, `docs/adr/ADR-001…006`.
-- Pins (from `docs/pins.md`): BTN_ACK GPIO4, BTN_MODE GPIO5, DBG GPIO6 (optional), SDA GPIO8, SCL GPIO9, MPU_INT GPIO10, LED green/yellow/red/blue GPIO11/12/13/14 (blue on LEDC). Both sensor modules on 3V3 (BMP280 is the 4-pin module). All four LED resistors are 100 Ω.
+- **T05 done** (2026-11-10, not yet committed). Next: T06 MPU-6050 (wake, 1 kHz config, gravity check).
+- The "BMP280" module is a **BME280** (id 0x60, BMP280 = 0x58). Calibration of this chip: dig_T1=27984, dig_T2=26460, dig_T3=50 (host tests use it).
+- `bmp280` driver (components/bmp280): `bmp280_init(dev, &id)` (accepts 0x58/0x60), `bmp280_read_calib(dev, &calib)`, `bmp280_configure(dev, osrs_t, osrs_p, t_sb, filter, mode, &ctrl_meas, &config)` (reads back), `bmp280_read_raw_temp(dev, &adc_t)`. Errors: `BMP280_ERR_READBACK` (= ESP_ERR_NOT_FINISHED, stored values differ), `BMP280_ERR_NO_DATA` (= ESP_ERR_INVALID_SIZE, result registers still 0x80000).
+- `bmp280_calc_temp_centi(calib, adc_t)` → int32 °C × 100, hardware-free (components/bmp280_calc).
+- `host_test/` exists: 7 Unity tests in `test_bmp280_calc.c`, run by `host_test\run_tests.ps1`, built with `-std=c11 -Wall -Wextra -Werror`. Each later logic component adds its own test file and `test_main.c` entry.
+- ADR-006 amendment: drivers may include `hal_i2c.h` and `hal_time.h` (`hal_time_delay_ms`) besides `esp_err.h` / `esp_log.h`.
+- Temporary `temp_rate_task` in `main/main.c` (6 ms, `xTaskDelayUntil`, one stats line per second). T07's sampler replaces it (BMP280 read every 6th sample there).
+- T06 must MOVE `APP_I2C_REG_MPU6050_WHO_AM_I` from `main/app_config.h` into the mpu6050 driver (and the bring-up ID read in main.c goes with it), not copy it.
+- Logic-analyzer skill planned after T05 (see History, 2026-11-10 T05 entries).
+- Pins (from `docs/pins.md`): BTN_ACK GPIO4, BTN_MODE GPIO5, DBG GPIO6 (optional), SDA GPIO8, SCL GPIO9, MPU_INT GPIO10, LED green/yellow/red/blue GPIO11/12/13/14 (blue on LEDC). Both sensor modules on 3V3. All four LED resistors are 100 Ω.
+- T07 notes in `hal_i2c.c`: error-counter race (task and ISR), bus-lock timeout must count as a fault, bus reset must not run without the lock.
+- Measurement flow (user's request 2026-11-03): the coach reads the meter point by point and asks Save / Repeat / Cancel before logging; `meter-tech` is not used for multi-point runs. The MCP meter server does not decode temperature mode: the user reads the display.
+- Parked recall: why the 5V pin reads 4.63–4.68 V (R010). Misconception to revisit: an ohmmeter across a pull-up on an LDO-powered board reads MΩ; measure SDA–SCL instead (R006).
+- Plan exists: `TASKS.md` (T01–T18 + S1–S5; the coach ticks rows), `docs/pins.md`, `docs/bom.md`, `docs/adr/ADR-001…006`.
 - Decisions to teach from: ADR-001 data-ready INT + per-sample read (FIFO is S1); ADR-002 black box in `RTC_NOINIT_ATTR` with CRC-16; ADR-003 `esp_task_wdt` 1 s, feed-on-success, culprit captured in the ISR hook, red LED flashes `esp_reset_reason()` times; ADR-004 100 ms light-sleep cycle in standby, MPU cycle 20 Hz, EXT1 deep sleep on GPIO4|5 with wait-for-release; ADR-005 1 kHz sampled two-button decoder, chord classified on release; ADR-006 board_hal / mpu6050 + bmp280 drivers / six host-tested logic components.
-- `host_test/` does not exist yet; it is created in T05 from the `Lesson_1_3_Blink` pattern.
 - Learner background to build on: Lesson 1.3 (components, Unity host tests, debounced button), Lesson 2.3 (superloop, `static const` config), dental curing light (gptimer 1 kHz ISR, shift-register debounce, ISR → queue → FSM task, reset-reason logging, power stage). New here: I2C, sensor registers, interrupts from a sensor, RMS/hysteresis, RTC RAM, task watchdog, light/deep sleep, LEDC.
 
 ## History
+
+### 2026-11-10 — T05 wrap-up (task-check, CQ1–3 saved)
+- Task-check on T05: every Verified-result item evidenced in `docs/log.md` and `docs/measurements.jsonl` (id 0x60, dig values, ctrl_meas 0x27 read back, ODR 166.7 Hz typ / 144.4 Hz worst, reads/s 166/167, finger +3.44 °C in 13 s and back down, 7 host tests 0 failing as logged; the examiner could not re-run them).
+- Temperature judgement: the probe on the chip gave 23.0 °C against a sensor value of ≈23.2 °C (+0.2 °C, within ±1.0 °C; the sensor value was taken from the steady log, not at the same moment). In air the probe gave 21.5 °C (+1.73 °C), not like for like: the chip sits ≈1.5 °C above room air (board heat and/or self-heating), so the gap is physical, not a sensor error. Next time capture the sensor value at the same moment as the meter reading.
+- CQ1–3 saved in `docs/log.md`. CQ3's first answer looked copied from a reference; the learner then gave own phrases and the draft was built from those.
+- Explainers: T05 https://claude.ai/artifact/NjutphUZoRWoefLeuyzLaV ; "I2C Sensors for Newbies" ep. 1 https://claude.ai/artifact/PCTsHN4sGhLCDkMsdCQt1H
+- Recall: R006 answered with a nudge 2026-11-10, stays box 2, next 2026-11-13. R023–R027 added from T05 (box 1, next 2026-11-11).
+- Next: commit T05 on eoffers51 (not yet done), tick the TASKS.md row (coach), then T06.
+
+### 2026-11-10 — T05 checkpoints 2–4 + bench (uncommitted)
+- cp2: `ctrl_meas=0x27 config=0x00` read back. Learner built 0x27 by hand; computed ODR typ 5.5+0.5 ms → 166.7 Hz (worst 144.4 Hz; both go into docs/log.md). Read-back mismatch has its own code BMP280_ERR_READBACK (= ESP_ERR_NOT_FINISHED).
+- cp3: bmp280_calc + host_test/ (7 tests pass: datasheet 2508, own calib vs double at 500k/520k/540k/484319, rounding 520008 → 2280, monotonic 400k–600k). Learner: "shifts throw away remainder bits" (correct).
+- cp4: 6 ms task with xTaskDelayUntil (pdFALSE → resync, skip not burst); 0x80000 = 24.15 °C on this chip, so NO_DATA only until the first real result, cleared again on any bus error. Periodic T04 rescan removed.
+- Bench: reads/s 166/167, no_data 0, err 0; 23.2 °C; finger +3.44 °C in 13 s, falls back; heap 389896 flat (task 3448 B); stack_free_min 1464 of 3072 B. Meter (read by eye): 21.5 °C in air (+1.73, not like for like), 23.0 °C on the chip vs ≈23.2 (learner did not catch the exact value, chose 23.2) → chip ≈1.5 °C above air (board heat/self-heating). Learner named ESP32 heat + self-heating as hypotheses.
+- Misconceptions: reads/s computed as 400000/6 (mixed the I2C clock with the task period); prediction "is 0x75 WHO_AM_I's value" (register address vs content, corrected).
+- Learner asked for a general I2C-integration page: "I2C Sensors for Newbies" ep. 1 https://claude.ai/artifact/PCTsHN4sGhLCDkMsdCQt1H
+- Next: CQ1–3, then docs/log.md T05 entry (incl. both ODR values), wrap-up, commit.
+- After T05 (user decision): build a `logic-analyzer` skill for the embedded-agents plugin (the local claude-skills project next to equipment-monitor, push to eoffers51/claude-skills): sigrok-cli capture (fx2lafw "Saleae Logic" clone, D0=SCL, D1=SDA), I2C decode, transaction table checked against the project drivers, .sr file for PulseView. sigrok-cli is NOT installed yet (only PulseView); PulseView must be closed while capturing. Learner capture already decoded one temp read: FA → 7F 74 00 = 0x7F740 → 23.12 °C, ≈145 µs, ≈400 kHz.
+
+### 2026-11-10 — T05 checkpoint 1 (uncommitted)
+- Recall R006 needed a nudge (first answer "measure the regulator drop"); stays in box 2.
+- Prediction 20-bit max 1 048 575, room raw ≈ middle: correct. Little-endian 0x70/0x6B → 0x6B70 = 27504: correct.
+- Bench: `id=0x60`; **this chip's calibration (use in host tests): dig_T1=27984 dig_T2=26460 dig_T3=50**; dig_P1=36540 P2=-10596 P3=3024 P4=5539 P5=51 P6=-7 P7=11700 P8=-11800 P9=5000. Reset wait ≈ 3 ms in the log. Heap 393344 unchanged.
+- ADR-006 amended (user decision): drivers may include `hal_time.h` (`hal_time_delay_ms`) besides `hal_i2c.h`; CLAUDE.md updated to match.
+- Explainer: https://claude.ai/artifact/NjutphUZoRWoefLeuyzLaV
+- ODR (learner computed typ: 5.5 ms + 0.5 ms → 166.7 Hz). Decision: write both into docs/log.md at wrap-up: typ 166.7 Hz meets ≥ 150 Hz; worst case (t_max 6.425 ms) 144.4 Hz, still ≈ 3× the §1 50 Hz.
 
 ### 2026-11-10 — T04 checkpoint 3 and wrap-up (uncommitted)
 - Checkpoint 3 bench: who_am_i 0x68 (MPU-6050), id 0x60 (BME280), errors 0 after the ID reads. Meter idle SDA 3.277 V, SCL 3.276 V (both in the 3.1–3.3 V window).

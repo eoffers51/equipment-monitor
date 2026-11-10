@@ -31,7 +31,7 @@ Companion to `TASK.md` (the spec). Section numbers like **§2** refer to that fi
 | T02 | Project skeleton, HAL shell, boot log | Bring-up | §6, §9 | | ☑ 2026-11-06 |
 | T03 | Four LEDs: GPIO heartbeat + LEDC blue | Bring-up | §5 | | ☑ 2026-11-06 |
 | T04 | I2C bus at 400 kHz + address scan | Bring-up | HW, §1 | | ☑ 2026-11-10 |
-| T05 | BMP280: ID, calibration, max-rate temperature | Sensors | §1 | `bmp280_calc` (creates `host_test/`) | ☐ |
+| T05 | BMP280: ID, calibration, max-rate temperature | Sensors | §1 | `bmp280_calc` (creates `host_test/`) | ☑ 2026-11-10 |
 | T06 | MPU-6050: wake, 1 kHz config, gravity check | Sensors | §1 | | ☐ |
 | T07 | Data-ready interrupt → sampler task, jitter, lost samples | Timing | §1, §9 | | ☐ |
 | T08 | Analysis: dynamic RMS, temperature mean, blue load LED | Analysis | §2, §5 | `analysis` | ☐ |

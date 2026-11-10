@@ -156,3 +156,53 @@ A healthy read: 9 bytes on the wire (addr+W, reg, addr+R, 6 data) × 9 clocks = 
 | Samples missed at 1 kHz | t_block × 1 kHz | 60–110 ms × 1/ms | 60–110 (must be counted, §1) |
 
 It stays well inside the 1 s hang budget of §7, but at 1 kHz it means lost samples.
+
+## T05 BME280: ID, calibration, max-rate temperature (2026-11-10)
+
+### Results
+
+Chip: `id=0x60`, so the module sold as BMP280 is a **BME280** (same temperature path). Calibration of this chip: dig_T1=27984, dig_T2=26460, dig_T3=50 (datasheet example: 27504 / 26435 / −1000). Read back: `ctrl_meas=0x27 config=0x00` (osrs_t ×1, osrs_p ×1, normal mode; t_sb 0.5 ms, filter off).
+
+Datasheet ODR (BME280, humidity skipped):
+
+| Quantity | Formula | Calculation | Result |
+|---|---|---|---|
+| t_measure, typical | 1 + 2·T_os + (2·P_os + 0.5) | 1 + 2 + 2.5 | 5.5 ms |
+| ODR, typical | 1000 / (t_measure + t_sb) | 1000 / (5.5 + 0.5) | 166.7 Hz (≥ 150 Hz ✅) |
+| t_measure, max | 1.25 + 2.3·T_os + (2.3·P_os + 0.575) | 1.25 + 2.3 + 2.875 | 6.425 ms |
+| ODR, worst case | 1000 / (t_max + t_sb) | 1000 / 6.925 | 144.4 Hz (still ≈ 3× the 50 Hz of §1) |
+
+Measured: `reads/s` 166 / 167 (task every 6 ms: 1000 / 6 = 166.7), no_data 0, err 0, 23.2 °C at rest. Finger on the chip: 23.28 → 26.72 °C in 13 s (+3.44 °C), falling back afterwards. Heap flat at 389896 (task stack + control block 3448 B, once); stack_free_min 1464 of 3072 B.
+
+Meter in temperature mode (read off the display): 21.5 °C with the probe in the air next to the module (sensor 23.23 °C, +1.73 °C); 23.0 °C with the probe on the BME280 chip (sensor ≈ 23.2 °C, +0.2 °C ✅). The chip sits about 1.5 °C above the room air: heat from the ESP32 board and/or self-heating from measuring 166 times per second.
+
+Host tests (`host_test/`, MinGW gcc, `-std=c11 -Wall -Wextra -Werror`): 7 tests, 0 failures.
+
+### Control questions
+
+**1. In the integer compensation, which intermediate product would overflow a 32-bit signed integer if the raw value and `dig_T2` were at their limits, and how does the reference code avoid it?**
+The first product in `var1`: ((adc_T >> 3) − (dig_T1 << 1)) × dig_T2. At the limits (adc_T = 1 048 575, dig_T1 = 0, dig_T2 = 32 767) it is above INT32_MAX:
+
+| Quantity | Formula | Calculation | Result |
+|---|---|---|---|
+| Bracket at the limits | (adc_T >> 3) − (dig_T1 << 1) | 131 071 − 0 | 131 071 |
+| Product at the limits | bracket × dig_T2 | 131 071 × 32 767 | 4 294 836 225 ≈ 2 × INT32_MAX → overflow |
+| Bracket, my chip at raw 520 000 | 65 000 − 2 × 27 984 | | 9 032 |
+| Product, my chip | 9 032 × 26 460 | | 238 986 720 (fits) |
+
+The reference avoids it by making the number small **before** multiplying: the shift right by 3 drops bits below the sensor's resolution, and subtracting dig_T1 (a factory offset close to the chip's real raw values) leaves only a small difference. Then `>> 11` scales the product down. var2 does the same: it squares the small difference (adc_T >> 4) − dig_T1 and shifts `>> 12` before multiplying by dig_T3. This works because dig_T1 matches the real chip; at arbitrary limit values it would still overflow.
+
+**2. Why did the datasheet ODR come out higher than "reads per second" could ever need, and what does reading faster than the ODR give you?**
+We chose the fastest settings on purpose: minimum oversampling (osrs_t ×1, osrs_p ×1) and the minimum standby time (t_sb 0.5 ms), so one cycle is only 5.5 + 0.5 = 6 ms → 166.7 Hz. But temperature changes slowly, because the chip and its board have thermal mass. My finger needed 13 s for +3.44 °C:
+
+| Quantity | Formula | Calculation | Result |
+|---|---|---|---|
+| ODR (typ) | 1000 / (t_measure + t_sb) | 1000 / (5.5 + 0.5) | 166.7 Hz (§1 needs ≥ 50 Hz) |
+| Samples during the finger rise | t × ODR | 13 s × 166 | ≈ 2160 |
+| Change per sample | ΔT / samples | 3.44 °C / 2160 | ≈ 0.0016 °C |
+
+So 166 Hz is far more than the signal needs. Reading faster than the ODR gives the old value again, because the next measurement is not finished yet: no new information, only extra bus traffic and power.
+
+**3. Why does the BMP280 have no data-ready pin, and what does that mean for how the sampler task will read it later?**
+The BMP280 (and my BME280) was designed for phones and wearables, where pin count and power matter most, and for weather/altitude signals that change slowly (CQ2: about 0.0016 °C per sample). So Bosch lets the host decide the timing instead of signalling with an interrupt. Reading at any moment is safe, because a burst read gets one complete measurement.
+For the sampler this means the task **polls on a timer**: it does not know when a new measurement is ready. The two clocks (task 6 ms, sensor ≈ 6 ms) are independent, so **some reads repeat** the old value (or a new one is skipped). That is acceptable for temperature. The MPU-6050 is different: it has an **INT pin** (GPIO10) that says exactly when each new sample is ready, so the 1 kHz vibration path **uses the interrupt** (T07, §1) and never repeats or misses a sample without counting it.

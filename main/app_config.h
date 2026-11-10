@@ -42,14 +42,21 @@ _Static_assert((APP_SAMPLE_RATE_HZ * APP_WINDOW_MS) % 1000U == 0U, "window must 
 _Static_assert(APP_I2C_SCAN_FIRST_ADDR <= APP_I2C_SCAN_LAST_ADDR && APP_I2C_SCAN_LAST_ADDR <= 0x7FU,
                "scan range must be a valid 7-bit address range");
 
-/* T04 bring-up: identity registers, read after every scan to prove register reads work.
- * Datasheet values: MPU-6050 WHO_AM_I reads 0x68, BMP280 id reads 0x58.
- * These move into the mpu6050 / bmp280 drivers in T05/T06. */
+/* T04 bring-up: the MPU-6050 identity register, read after the boot scan to prove register reads
+ * work. Datasheet value: WHO_AM_I reads 0x68. It moves into the mpu6050 driver in T06; the
+ * BMP280 ID register already moved into the bmp280 driver (T05). */
 #define APP_I2C_REG_MPU6050_WHO_AM_I 0x75U
-#define APP_I2C_REG_BMP280_ID 0xD0U
 
-/* T04: repeat the scan this often, so a sensor can be unplugged and replugged without a reset. */
-#define APP_I2C_SCAN_PERIOD_MS 5000U
+/* T05 temporary temperature task (temp_rate_task in main.c); the T07 sampler task replaces it.
+ * Period: one raw temperature read every 6 ms. With CONFIG_FREERTOS_HZ=1000 that is exactly 6 ticks.
+ * Stack in BYTES: ESP-IDF's xTaskCreate takes bytes, not words like vanilla FreeRTOS
+ * (freertos/task.h, usStackDepth). ESP_LOGI's printf-style formatting is the deepest call here,
+ * and 3 KB leaves room for it.
+ * Priority 2: one above app_main (ESP_TASK_MAIN_PRIO = 1, esp_task.h), so app_main's status log
+ * can never make a read late. */
+#define APP_TEMP_TASK_PERIOD_MS 6U
+#define APP_TEMP_TASK_STACK_BYTES 3072U
+#define APP_TEMP_TASK_PRIO 2U
 
 /* Period of the app_main loop. Timing inside the loop comes from the µs clock, not from
  * counting loops, so this only sets how quickly a change is noticed (at most this late). */

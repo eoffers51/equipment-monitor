@@ -14,12 +14,12 @@ Three layers below `main/`:
 
 | Layer | Component | Responsibility | Includes allowed | Host test |
 |---|---|---|---|---|
-| HAL | `board_hal` | `hal_i2c` (bus, probe, `write_reg`, `read_regs` with timeout, bus reset), `hal_gpio` (LED outputs, button inputs with pull-ups, INT edge ISR hook), `hal_ledc` (blue PWM), `hal_tick` (gptimer 1 kHz callback), `hal_time` (µs clock), `hal_wdt` (task-watchdog subscribe/feed + ISR culprit capture), `hal_rtcmem` (RTC noinit buffers), `hal_sleep` (light/deep sleep, wake decoding), `hal_sys` (reset reason, free heap, restart, UART flush) | `driver/*`, `esp_*`, FreeRTOS, `esp_attr.h` | no |
-| Sensor drivers | `mpu6050`, `bmp280` | register maps and mode sequences (wake, 1 kHz config, INT config, cycle mode, sleep; ID, calibration, normal/forced mode, raw reads) | `hal_i2c.h`, `esp_err.h`, `esp_log.h` only | no (thin, exercised on target in T05–T07) |
+| HAL | `board_hal` | `hal_i2c` (bus, probe, `write_reg`, `read_regs` with timeout, bus reset), `hal_gpio` (LED outputs, button inputs with pull-ups, INT edge ISR hook), `hal_ledc` (blue PWM), `hal_tick` (gptimer 1 kHz callback), `hal_time` (µs clock, short blocking delay), `hal_wdt` (task-watchdog subscribe/feed + ISR culprit capture), `hal_rtcmem` (RTC noinit buffers), `hal_sleep` (light/deep sleep, wake decoding), `hal_sys` (reset reason, free heap, restart, UART flush) | `driver/*`, `esp_*`, FreeRTOS, `esp_attr.h` | no |
+| Sensor drivers | `mpu6050`, `bmp280` | register maps and mode sequences (wake, 1 kHz config, INT config, cycle mode, sleep; ID, calibration, normal/forced mode, raw reads) | `hal_i2c.h`, `hal_time.h`, `esp_err.h`, `esp_log.h` only (amended 2026-11-10) | no (thin, exercised on target in T05–T07) |
 | Logic (pure C11) | `bmp280_calc`, `analysis`, `button_decoder`, `monitor_fsm`, `indicator`, `blackbox` | temperature compensation; window RMS/mean + thresholds with hysteresis and time qualification; button events; device state machine; LED patterns and flash codes; black-box ring + CRC | `<stdint.h>`, `<stdbool.h>`, `<string.h>` and each other where needed | **yes**, all six |
 | Application | `main/` | `main.c` (init, wiring), `board_pins.h`, `app_config.h` (thresholds, windows, timings), `sampler_task.c`, `control_task.c`, `events.h` | component headers, FreeRTOS (tasks, queues, notifications), `esp_log.h`, `esp_err.h` | no |
 
-Dependency rule: logic never includes HAL or driver headers; drivers include only `hal_i2c.h`; `main/` is the only place where a logic result is turned into a HAL call ("apply" pattern from dental T13).
+Dependency rule: logic never includes HAL or driver headers; drivers include only `hal_i2c.h` and `hal_time.h` (amended 2026-11-10); `main/` is the only place where a logic result is turned into a HAL call ("apply" pattern from dental T13).
 
 ## Options Considered
 
@@ -51,8 +51,11 @@ Separating `bmp280_calc` (≈ 40 lines) from `bmp280` looks pedantic, but it is 
 
 ## Action Items
 1. [ ] T02: create the skeleton (all component folders with CMakeLists and empty headers), prove the dependency rule.
-2. [ ] T05: `host_test/` created with `bmp280_calc`; later tasks add `analysis`, `button_decoder`, `monitor_fsm`, `indicator`, `blackbox`.
+2. [x] T05 (2026-11-10): `host_test/` created with `bmp280_calc`; later tasks add `analysis`, `button_decoder`, `monitor_fsm`, `indicator`, `blackbox`.
 3. [ ] T18: `README.md` "how the code works" diagram of these layers.
 
 ## Amendment 2026-11-06: component name `board_hal`
 The HAL component is named `board_hal`, not `hal`. ESP-IDF ships its own `hal` component (a common requirement of every component); a project component with the same name would replace it and break the build (ESP-IDF build-system docs, "Multiple Components with the Same Name"). File and function prefixes stay `hal_*`.
+
+## Amendment 2026-11-10: drivers may use `hal_time.h`
+Sensor drivers may include `hal_time.h` as well as `hal_i2c.h`. Datasheet sequences need short waits (BME280 start-up 2 ms after a soft reset, T05; MPU-6050 wake-up after a reset, T06), and ADR-006 keeps FreeRTOS out of drivers. `hal_time_delay_ms()` (round up to ticks + 1 tick, capped at `HAL_TIME_DELAY_MAX_MS`) gives them that wait without a FreeRTOS header. Drivers still use no other `board_hal` header, although `REQUIRES board_hal` makes them visible; code review checks this. Decided by the user in chat.

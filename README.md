@@ -1,6 +1,6 @@
 # Equipment Health Monitor
 
-ESP32-S3 firmware (ESP-IDF v6.0.2, plain C) that watches another machine: vibration from an MPU-6050 (GY-521) at 1 kHz and temperature from a BMP280, two operator buttons, four status LEDs, a crash-surviving black box, watchdog self-monitoring and deep sleep. A Beetroot Academy learning project; the spec is in [TASK.md](TASK.md) and the task list in [TASKS.md](TASKS.md).
+ESP32-S3 firmware (ESP-IDF v6.0.2, plain C) that watches another machine: vibration from an MPU-6050 (GY-521) at 1 kHz and temperature from a BMP280-class sensor (the module on the bench is a BME280, chip id 0x60), two operator buttons, four status LEDs, a crash-surviving black box, watchdog self-monitoring and deep sleep. A Beetroot Academy learning project; the spec is in [TASK.md](TASK.md) and the task list in [TASKS.md](TASKS.md).
 
 ## Wiring
 
