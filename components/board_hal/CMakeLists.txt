@@ -8,6 +8,7 @@
 #   listed anyway so this file names every IDF piece hal_sys.c really uses.
 # - esp_driver_gpio: driver/gpio.h for hal_gpio.c (each peripheral driver is its own IDF component).
 # - esp_driver_ledc: driver/ledc.h for hal_ledc.c.
-idf_component_register(SRCS "hal_sys.c" "hal_time.c" "hal_gpio.c" "hal_ledc.c"
+# - esp_driver_i2c: driver/i2c_master.h for hal_i2c.c (the new i2c_master driver, constraint 3).
+idf_component_register(SRCS "hal_sys.c" "hal_time.c" "hal_gpio.c" "hal_ledc.c" "hal_i2c.c"
                        INCLUDE_DIRS "include"
-                       PRIV_REQUIRES esp_system esp_timer esp_driver_gpio esp_driver_ledc)
+                       PRIV_REQUIRES esp_system esp_timer esp_driver_gpio esp_driver_ledc esp_driver_i2c)

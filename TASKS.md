@@ -30,7 +30,7 @@ Companion to `TASK.md` (the spec). Section numbers like **§2** refer to that fi
 | T01 | Bench check without the MCU | Bench | HW | | ☑ 2026-11-04 |
 | T02 | Project skeleton, HAL shell, boot log | Bring-up | §6, §9 | | ☑ 2026-11-06 |
 | T03 | Four LEDs: GPIO heartbeat + LEDC blue | Bring-up | §5 | | ☑ 2026-11-06 |
-| T04 | I2C bus at 400 kHz + address scan | Bring-up | HW, §1 | | ☐ |
+| T04 | I2C bus at 400 kHz + address scan | Bring-up | HW, §1 | | ☑ 2026-11-10 |
 | T05 | BMP280: ID, calibration, max-rate temperature | Sensors | §1 | `bmp280_calc` (creates `host_test/`) | ☐ |
 | T06 | MPU-6050: wake, 1 kHz config, gravity check | Sensors | §1 | | ☐ |
 | T07 | Data-ready interrupt → sampler task, jitter, lost samples | Timing | §1, §9 | | ☐ |
@@ -135,9 +135,9 @@ Steps:
 
 **Verified result**
 - Log: `i2c: 400000 Hz sda=8 scl=9`, `i2c: found 0x68`, `i2c: found 0x76` (or `0x77`), `i2c: 2 device(s)`; exactly two hits.
-- Step 4: `i2c: 1 device(s)` while unplugged, `2 device(s)` again after replugging, error counter incremented by the number of failed probes and nothing else.
+- Step 4: `i2c: 1 device(s)` while unplugged, `2 device(s)` again after replugging, error counter incremented by one per failed probe of a registered sensor and one per failed register read, and nothing else (a NACK at an empty address is not an error; checkpoint 2 build: +1 per scan, with the ID read: +2 per check).
 - Meter: SDA and SCL idle = 3.1–3.3 V.
-- Optional (scope mode of the 2C53T, read by you): SCL burst frequency 400 kHz ± 10 % during a scan.
+- Optional (scope mode of the 2C53T, read by you): SCL burst frequency 100 kHz ± 10 % during a scan (v6.0.2 probes use a fixed 100 kHz, `i2c_master.c:1385`) and 400 kHz ± 10 % during the ID reads (device-handle transfers).
 
 **Control questions**
 1. What does a device do electrically to "ACK" its address, and why can a probe of an empty address never damage anything?

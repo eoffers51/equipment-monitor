@@ -4,7 +4,11 @@ Claude's handoff notes between sessions. This is separate from `docs/log.md`, wh
 Keep **Current state** short and up to date. Add new entries at the top of **History**, 3–6 lines each.
 
 ## Current state
-- **T03 done** (2026-11-06, committed). Next: T04 I2C bus + address scan. `board_hal` now has `hal_gpio` (LED outputs, level before output mode) and `hal_ledc` (5 kHz, 8-bit, blue), both returning `esp_err_t` (ADR-006 policy). Added `docs/wiring.svg` and `README.md`. Blue hold/sweep test removed from `main.c`. Bench camera note: on the S9 use -Ev -20 and room light off for LED videos; a video with RST presses failed once (presses fell outside the recording window). Earlier T02 facts (reset reason, heap) stay in History.
+- **T04 done** (2026-11-10, not yet committed). Next: T05 BMP280 → actually a BME280 (id 0x60): temperature path as planned, driver must accept 0x60 (see notes below).
+- `hal_i2c` (components/board_hal/hal_i2c.c, uncommitted): `hal_i2c_init(sda, scl, scl_hz)`, `hal_i2c_add_device(addr7, &dev)`, `hal_i2c_probe(addr7)` (fixed 100 kHz inside IDF v6.0.2 probes), `hal_i2c_read_regs(dev, reg, buf, len)` and `hal_i2c_write_reg` (20 ms xfer timeout), `hal_i2c_bus_reset()`, `hal_i2c_error_count()`. `HAL_I2C_DEV_INVALID` (0xFF) is rejected by every device function. Error rule: NACK at a registered address, or any result other than OK/NOT_FOUND, counts; NACK at an empty address does not.
+- T05/T06 notes: the BMP280 module is a BME280 (chip id 0x60, BMP280 = 0x58). The T05 driver must accept 0x60, check the BME280 standby table and the ctrl_hum write ordering in its datasheet, and update `docs/bom.md`. The `APP_I2C_REG_*` constants in `main/app_config.h` must be MOVED (not copied) into the drivers at T05/T06. The 5 s rescan and ID read in `main.c` is bring-up only and goes before T07.
+- T07 notes in `hal_i2c.c`: error-counter race (counter touched from task and ISR context), bus-lock timeout must be counted as a fault, and bus reset must not run without the lock.
+- Pins (from `docs/pins.md`): BTN_ACK GPIO4, BTN_MODE GPIO5, DBG GPIO6 (optional), SDA GPIO8, SCL GPIO9, MPU_INT GPIO10, LED green/yellow/red/blue GPIO11/12/13/14 (blue on LEDC). Both sensor modules on 3V3. All four LED resistors are 100 Ω. T03 facts (LEDC 5 kHz, level-before-mode, camera setup) stay in History.
 - Parked recall for later: why the 5V pin reads 4.63–4.68 V and 3V3 does not show the loss. Misconception to revisit: an ohmmeter across a pull-up on a powered-path (LDO) board reads MΩ and drifts; measure SDA–SCL instead.
 - Measurement flow (user's request 2026-11-03): the coach reads the meter point by point and asks Save / Repeat / Cancel before logging; `meter-tech` is not used for multi-point runs.
 - Plan exists: `TASKS.md` (T01–T18 + S1–S5), `docs/pins.md` (pin budget, everything on header J1), `docs/bom.md`, `docs/adr/ADR-001…006`.
@@ -14,6 +18,20 @@ Keep **Current state** short and up to date. Add new entries at the top of **His
 - Learner background to build on: Lesson 1.3 (components, Unity host tests, debounced button), Lesson 2.3 (superloop, `static const` config), dental curing light (gptimer 1 kHz ISR, shift-register debounce, ISR → queue → FSM task, reset-reason logging, power stage). New here: I2C, sensor registers, interrupts from a sensor, RMS/hysteresis, RTC RAM, task watchdog, light/deep sleep, LEDC.
 
 ## History
+
+### 2026-11-10 — T04 checkpoint 3 and wrap-up (uncommitted)
+- Checkpoint 3 bench: who_am_i 0x68 (MPU-6050), id 0x60 (BME280), errors 0 after the ID reads. Meter idle SDA 3.277 V, SCL 3.276 V (both in the 3.1–3.3 V window).
+- Task-check on T04: all steps and verified items evidenced; CQ1–3 saved in docs/log.md. Optional 400 kHz/100 kHz scope check not done (not required). The TASKS.md row tick and the commit are still to do.
+- Misconceptions: CQ2 "a parallel pull-up slows the edge" (a parallel pull-up lowers R, so it is faster); "no pull-up → lots of charging current" (the line floats, same as R003). CQ3: counted 7 bytes instead of 9 for the 6-byte read, and mixed ms with µs.
+- Explainer: https://claude.ai/artifact/YS9DuhmtG34CQ1BaqbbJhp
+- Still open: ask the user whether to add a correction note to the T01 rise-time answer in docs/log.md (it uses 2.2·R·C; the spec's 0.847·R·C applies).
+
+### 2026-11-09/10 — T04 checkpoints 1–2 (uncommitted)
+- Recall: R003 corrected ("no pull-up → rises too fast" → it floats); R007 key fixed: the I2C spec measures t_r 30→70 % (0.847·R·C ≈ 154 ns, inside 300 ns). The coach first graded with 2.2·R·C, which was wrong; the learner's first answer "inside" was right. T01 answer in docs/log.md still uses 2.2·R·C: ask before adding a correction note.
+- Prediction 112 probes / 2 ACK correct. Bench: found 0x68 + 0x76 (BMP280 SDO low), scan ≈ 19 ms (≈ 0.17 ms/probe), heap flat.
+- v6.0.2 fact: `i2c_master_probe` always runs at 100 kHz (i2c_master.c:1385); 400 kHz only on device-handle transfers. TASKS.md optional scope check (400 kHz during scan) needs rewording: ask the user.
+- User's error-counter rule: NACK at a registered address or any non-OK/NOT_FOUND result counts; NACK at an empty address does not. Step 4 bench: errors 0→1→2→3 during 3 unplugged scans, stays 3 after replug, no reboot; prediction fully correct.
+- Probe timeout 50 ms (> 20 ms hardware SCL timeout); neither driver path resets the controller after a probe timeout in v6.0.2. Open for checkpoint 3: read/write regs + bus reset, an invalid device index (index 0 = MPU), meter idle levels.
 
 ### 2026-11-06 — T03 Four LEDs (checkpoints 1–5)
 - Prediction: 1.65 V at duty 128 correct; blue sweep changes most at low duty, correct (camera ~60 % of change in the first 0.5 s).

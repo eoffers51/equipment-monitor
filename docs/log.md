@@ -39,6 +39,7 @@ At idle no I2C device pulls SDA down (open-drain drivers only pull low, never hi
 
 **2. Two pull-ups in parallel: what happens to the rise time on SDA, and when would that become a problem for 400 kHz?**
 A larger pull-up charges the bus capacitance more slowly, so the rise time grows; a smaller (parallel) pull-up makes it faster. At 400 kHz a bit lasts 2.5 µs and I2C fast mode allows a rise time of at most 300 ns. With t_r ≈ 2.2 · R · C and C ≈ 100 pF: 1.82 kΩ → 400 ns, 10 kΩ → 2.2 µs, almost a full bit. Neither is strictly under 300 ns, but 1.82 kΩ works with short wires; 10 kΩ alone would not. The GY-521's 2.2 kΩ carries the bus.
+*Correction 2026-11-10 (T04): the I2C spec defines t_r from 30 % to 70 %, so t_r = 0.847·R·C = 0.847 × 1.82 kΩ × 100 pF ≈ 154 ns, inside 300 ns (10 kΩ alone: ≈ 847 ns, still outside). 2.2·R·C (≈ 400 ns) is the 10→90 % rise time.*
 
 **3. The spec wants a few mA per LED: why control the current and not the voltage, and what would 3.3 V directly on the blue LED do?**
 An LED's voltage is almost constant (blue 2.79 V at 4.8 mA, red 2.09 V at 11.9 mA) while its current changes a lot with tiny voltage changes. So setting a voltage cannot set the brightness; setting the current can. The series resistor turns the fixed 3.3 V into a chosen current: I = (3.3 − V_f) / R. With 3.3 V directly on the blue LED the 0.5 V excess has nothing to drop across, the current is limited only by wiring and the chip, and the LED burns out.
@@ -108,3 +109,50 @@ On a 5 kHz PWM pin the meter shows the average voltage: the pin is only ever 0 V
 
 **3. What limits the LEDC duty resolution at a given frequency on this chip?**
 The LEDC counts ticks of its source clock (APB, 80 MHz), and one PWM period must hold 2^bits ticks. So the resolution is limited by the clock: max bits = floor(log2(f_clk / f_pwm)). At 5 kHz: 80 000 000 / 5000 = 16 000 ticks per period, 2^13 = 8192 fits and 2^14 = 16 384 doesn't → 13 bits max (we use 8). The second limit is the hardware counter width, 14 bits on the ESP32-S3 (`SOC_LEDC_TIMER_BIT_WIDTH`): at 100 Hz the clock would allow log2(800 000) ≈ 19.6 bits, but you still get only 14. So: higher frequency → fewer bits (clock limit); low frequency → capped at 14 bits (counter limit).
+
+## T04 I2C bus at 400 kHz + address scan (2026-11-09/10)
+
+### Results
+
+Scan 0x08–0x77 (112 probes, prediction 112 / 2 ACK: correct): `found 0x68`, `found 0x76`, `2 device(s)` on every scan. One scan ≈ 19 ms: 0x68 is probe 96 and was logged 16 ms after the start → ≈ 0.17 ms per probe (probes run at a fixed 100 kHz in IDF v6.0.2).
+
+Unplug test (BMP280 SDA pulled for 3 scans, prediction "1 device, +1 per scan, stays after replug": correct): `1 device(s)` and errors 0 → 1 → 2 → 3, back to `2 device(s)` with errors staying at 3, no reboot. Heap flat at 393344 (136 bytes less than before, used once at boot by the two device registrations).
+
+ID reads at 400 kHz: MPU-6050 `who_am_i=0x68`; the "BMP280" module answered `id=0x60`, so it is a **BME280** (BMP280 = 0x58).
+
+Meter, DC V vs GND, firmware running: SDA idle 3.277 V, SCL idle 3.276 V (target 3.1–3.3 V; prediction "about 3.28").
+
+### Control questions
+
+**1. What does a device do electrically to ACK its address, and why can a probe of an empty address never damage anything?**
+On the 9th clock the master lets go of SDA, and the addressed device pulls SDA LOW. LOW = ACK. Nobody ever drives SDA HIGH: only the pull-up resistors pull the line high, and each device can only pull it LOW or let go. So two outputs can never fight. At an empty address nobody pulls, SDA stays HIGH = NACK, and nothing happens. Even when a device pulls LOW, the current is limited by the pull-up:
+
+| Quantity | Formula | Calculation | Result |
+|---|---|---|---|
+| Current when pulled LOW | V_rail / R_pull-up | 3.283 V / 1.82 kΩ (2.22 k ∥ 10.0 k, T01) | 1.8 mA (< 3 mA fast-mode sink limit) |
+
+**2. Why do we not enable the ESP32's internal pull-ups on SDA/SCL here, and when would we have to?**
+The modules already carry pull-ups (2.22 kΩ ∥ 10.0 kΩ = 1.82 kΩ, T01). The internal pull-up (≈ 45 kΩ) would sit in parallel with them, and a parallel resistor lowers the total R (faster rise, not slower). But it barely changes anything, so it is not needed:
+
+| Quantity | Formula | Calculation | Result |
+|---|---|---|---|
+| Modules + internal | 1 / (1/1.82 k + 1/45 k) | | 1.75 kΩ (−4 %) |
+
+We would have to enable it only if the bus had no pull-ups at all, because then SDA/SCL float and never go HIGH. Even then it is too weak for 400 kHz:
+
+| Quantity | Formula | Calculation | Result |
+|---|---|---|---|
+| Rise time, internal only | 0.847 · R · C (30→70 %, I2C spec) | 0.847 × 45 kΩ × 100 pF | ≈ 3.8 µs ≫ 300 ns (fast mode), > 1000 ns (standard mode) |
+
+So without module pull-ups the right fix is external resistors (≈ 2.2–4.7 kΩ). The internal one is only a stop-gap for a short, slow bus.
+
+**3. What is the worst-case time one `hal_i2c_read_regs` of 6 bytes can block, and where does that number come from?**
+A healthy read: 9 bytes on the wire (addr+W, reg, addr+R, 6 data) × 9 clocks = 81 clocks × 2.5 µs (400 kHz) ≈ 0.2 ms. The worst case is not the 20 ms timeout, because the driver uses `xfer_timeout_ms` for each wait, not once per call: bus lock (`i2c_master.c:1008`), command wait (`:535`), done event (`:582`), about 3 × 20 = 60 ms. After an earlier timeout the driver also clears the bus first, which can busy-wait up to 50 ms (`:679-681`, `:86-95`), so up to ≈ 110 ms.
+
+| Quantity | Formula | Calculation | Result |
+|---|---|---|---|
+| Healthy read | bytes × 9 × t_clk | 9 × 9 × 2.5 µs | ≈ 0.2 ms |
+| Worst case | waits × timeout + bus clear | 3 × 20 ms + 50 ms | ≈ 110 ms |
+| Samples missed at 1 kHz | t_block × 1 kHz | 60–110 ms × 1/ms | 60–110 (must be counted, §1) |
+
+It stays well inside the 1 s hang budget of §7, but at 1 kHz it means lost samples.
